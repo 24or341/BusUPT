@@ -159,39 +159,48 @@ class _MapScreenState extends State<MapScreen> {
 
   // Decode polyline to LatLng points
   List<LatLng> _decodePolyline(String encoded) {
-    List<LatLng> points = [];
-    int index = 0, len = encoded.length;
-    int lat = 0, lng = 0;
+  List<LatLng> points = [];
+  int index = 0, len = encoded.length;
+  int lat = 0, lng = 0;
 
-    while (index < len) {
-      int result = 1;
-      int shift = 0;
-      int b;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result += b << shift;
-        shift += 5;
-      } while (b >= 0x20);
+  while (index < len) {
+    int result = 1;
+    int shift = 0;
+    int b;
+    do {
+      b = encoded.codeUnitAt(index++) - 63;
+      result += b << shift;
+      shift += 5;
+    } while (b >= 0x20);
 
-      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
+    int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
 
-      result = 1;
-      shift = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result += b << shift;
-        shift += 5;
-      } while (b >= 0x20);
+    result = 1;
+    shift = 0;
+    do {
+      b = encoded.codeUnitAt(index++) - 63;
+      result += b << shift;
+      shift += 5;
+    } while (b >= 0x20);
 
-      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
+    int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
 
-      points.add(LatLng(lat / 100000.0, lng / 100000.0));
-    }
+    // Convertir lat/lng a coordenadas de LatLng y redondear a 5 decimales
+    double latitude = lat / 100000.0;
+    double longitude = lng / 100000.0;
 
-    return points;
+    // Redondear a 5 decimales
+    latitude = double.parse(latitude.toStringAsFixed(5));
+    longitude = double.parse(longitude.toStringAsFixed(5));
+
+    points.add(LatLng(latitude, longitude));
   }
+
+  return points;
+}
+
 
   // Adjust camera to show the entire route
   void _adjustCameraToRoute(List<LatLng> points) {
@@ -237,24 +246,31 @@ class _MapScreenState extends State<MapScreen> {
             markers: _markers,
             polylines: _polylines,
             onTap: (LatLng location) {
-              setState(() {
-                _markers.removeWhere(
-                    (marker) => marker.markerId.value == 'destination');
-                _markers.add(
-                  Marker(
-                    markerId: const MarkerId('destination'),
-                    position: location,
-                    icon: BitmapDescriptor.defaultMarkerWithHue(
-                        BitmapDescriptor.hueRed),
-                    infoWindow: const InfoWindow(title: 'Destino'),
-                  ),
-                );
+                setState(() {
+                  // Aplicar a las coordenadas del destino el formato con 5 decimales
+                  double destinationLat = location.latitude;
+                  double destinationLng = location.longitude;
 
-                _destinationMarker = location;
-              });
+                  // Limitar a 5 decimales
+                  destinationLat = double.parse(destinationLat.toStringAsFixed(5));
+                  destinationLng = double.parse(destinationLng.toStringAsFixed(5));
 
-              _drawRoute();
-            },
+                  _markers.removeWhere((marker) => marker.markerId.value == 'destination');
+                  _markers.add(
+                    Marker(
+                      markerId: const MarkerId('destination'),
+                      position: LatLng(destinationLat, destinationLng),
+                      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                      infoWindow: const InfoWindow(title: 'Destino'),
+                    ),
+                  );
+
+                  _destinationMarker = LatLng(destinationLat, destinationLng);
+                });
+
+                _drawRoute();
+              }
+
           ),
           if (_isLoadingRoute)
             const Center(child: CircularProgressIndicator()),
