@@ -32,7 +32,7 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   late GoogleMapController mapController;
 
-  // Initial camera position (centered on Mexico City)
+  // Initial camera position (centered on Peru)
   static const LatLng _initialPosition = LatLng(-18.00643, -70.22721);
 
   // Current location marker
@@ -61,90 +61,101 @@ class _MapScreenState extends State<MapScreen> {
 
   // Get current location
   // Reemplaza la función _getCurrentLocation para asignar coordenadas directamente
-Future<void> _getCurrentLocation() async {
-  try {
-    // Coordenadas especificadas directamente (por ejemplo: Ciudad de México)
-    _currentLocation = LatLng(-18.00643, -70.22721); // Latitud y Longitud deseadas
+  Future<void> _getCurrentLocation() async {
+    try {
+      // Coordenadas especificadas directamente (por ejemplo: Tacna, Perú)
+      _currentLocation = const LatLng(-18.00643, -70.22721); // Latitud y Longitud deseadas
 
-    setState(() {
-      // Agregar marcador de la ubicación inicial
-      _markers.add(
-        Marker(
-          markerId: const MarkerId('current_location'),
-          position: _currentLocation!,
-          icon:
-              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-          infoWindow: const InfoWindow(title: 'Mi Ubicación'),
-        ),
-      );
+      setState(() {
+        // Agregar marcador de la ubicación inicial
+        _markers.add(
+          Marker(
+            markerId: const MarkerId('current_location'),
+            position: _currentLocation!,
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+            infoWindow: const InfoWindow(title: 'Mi Ubicación'),
+          ),
+        );
 
-      // Mover la cámara a la ubicación inicial
-      mapController.animateCamera(
-        CameraUpdate.newLatLngZoom(_currentLocation!, 15),
-      );
-    });
-  } catch (e) {
-    print("Error configurando la ubicación inicial: $e");
+        // Mover la cámara a la ubicación inicial
+        mapController.animateCamera(
+          CameraUpdate.newLatLngZoom(_currentLocation!, 15),
+        );
+      });
+    } catch (e) {
+      print("Error configurando la ubicación inicial: $e");
+    }
   }
-}
-
 
   // Draw route between two points
- Future<void> _drawRoute() async {
-  if (_currentLocation == null || _destinationMarker == null) {
-    _showErrorSnackbar('Por favor, selecciona un destino en el mapa.');
-    return;
-  }
-
-  setState(() {
-    _isLoadingRoute = true;
-  });
-
-  try {
-    final String url = 'https://maps.googleapis.com/maps/api/directions/json?'
-        'origin=${_currentLocation!.latitude},${_currentLocation!.longitude}'
-        '&destination=${_destinationMarker!.latitude},${_destinationMarker!.longitude}'
-        '&mode=driving'
-        '&key=AIzaSyAiJofFoIKKglajZx-J0TKd7ppIKHjxfBA';
-
-    final Response response = await _dio.get(url);
-
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = response.data;
-
-      if (data['routes'] != null && data['routes'].isNotEmpty) {
-        final List<LatLng> routePoints =
-            _decodePolyline(data['routes'][0]['overview_polyline']['points']);
-
-        setState(() {
-          _polylines.clear(); // Clear existing routes
-          _polylines.add(
-            Polyline(
-              polylineId: const PolylineId('route'),
-              points: routePoints,
-              color: Colors.blue,
-              width: 5,
-            ),
-          );
-        });
-
-        // Adjust camera to route
-        _adjustCameraToRoute(routePoints);
-      } else {
-        _showErrorSnackbar('No se encontró una ruta válida.');
-      }
-    } else {
-      _showErrorSnackbar('Error al obtener la ruta del servidor.');
+  Future<void> _drawRoute() async {
+    if (_currentLocation == null || _destinationMarker == null) {
+      _showErrorSnackbar('Por favor, selecciona un destino en el mapa.');
+      return;
     }
-  } catch (e) {
-    _showErrorSnackbar('Error de conexión: $e');
-  } finally {
-    setState(() {
-      _isLoadingRoute = false;
-    });
-  }
-}
 
+    setState(() {
+      _isLoadingRoute = true;
+    });
+
+    try {
+      
+
+      // Limitar la cantidad de decimales de las coordenadas
+    String originLat = _currentLocation!.latitude.toStringAsFixed(5);
+    String originLng = _currentLocation!.longitude.toStringAsFixed(5);
+    String destinationLat = _destinationMarker!.latitude.toStringAsFixed(5);
+    String destinationLng = _destinationMarker!.longitude.toStringAsFixed(5);
+
+    // Imprimir coordenadas para depuración
+      print('Origen: $originLat,$originLng');
+      print('Destino: $destinationLat,$destinationLng');
+
+    // Construir la URL con las coordenadas limitadas a 5 decimales
+    final String url = 'https://maps.googleapis.com/maps/api/directions/json?'
+    'origin=$originLat,$originLng'
+    '&destination=$destinationLat,$destinationLng'
+    '&mode=driving'
+    '&key=AIzaSyAiJofFoIKKglajZx-J0TKd7ppIKHjxfBA';
+
+
+      final Response response = await _dio.get(url);
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = response.data;
+
+        if (data['routes'] != null && data['routes'].isNotEmpty) {
+          final List<LatLng> routePoints =
+              _decodePolyline(data['routes'][0]['overview_polyline']['points']);
+
+          setState(() {
+            _polylines.clear(); // Clear existing routes
+            _polylines.add(
+              Polyline(
+                polylineId: const PolylineId('route'),
+                points: routePoints,
+                color: Colors.blue,
+                width: 5,
+              ),
+            );
+          });
+
+          // Adjust camera to route
+          _adjustCameraToRoute(routePoints);
+        } else {
+          _showErrorSnackbar('No se encontró una ruta válida.');
+        }
+      } else {
+        _showErrorSnackbar('Error al obtener la ruta del servidor.');
+      }
+    } catch (e) {
+      _showErrorSnackbar('Error de conexión: $e');
+    } finally {
+      setState(() {
+        _isLoadingRoute = false;
+      });
+    }
+  }
 
   // Decode polyline to LatLng points
   List<LatLng> _decodePolyline(String encoded) {
